@@ -1,0 +1,585 @@
+program PoWForger;
+{$DEFINE SMART}
+{.include SRL/SRL.scar}
+{.include Reflection/Reflection.simba}
+{$i srl/srl/skill/smithing.scar}
+{$i srl/srl/misc\stats.simba}
+
+
+const
+  DEBUG = True;
+
+  SRLStats_User = ''; // Your SRL Stats ID (If you dont have one then just leave it as it is)
+  SRLStats_Password = ''; // Your SRL Stats Password (If you dont have one then just leave it as it is)
+
+var
+  BREAK_TIME, SLEEP_TIME, RAND_TIME, ANTI_BAN: Integer;
+
+procedure SetupSmartStuff;
+begin
+  if (SRLStats_Username = '') then SetupSRLStats(152, 'Anonymous', 'anon1337') else SetupSRLStats(152, SRLStats_Username, SRLStats_Password);
+  SMART_SERVER  := 161;
+  SMART_SIGNED  := True;
+  SMART_MEMBERS := False;
+  ANTI_BAN      := 250;  //Bigger the number the better
+end;
+
+procedure DeclarePlayers;
+var
+  F: Integer;
+begin
+
+  HowManyPlayers:= 1;
+  CurrentPlayer:= 0;
+  NumberOfPlayers(HowManyPlayers);
+
+  with Players[0] do
+  begin
+    Name := '';
+    Pass := '';
+    Nick := '';    // 3 or so letters of username
+    Pin := '';
+    Active := True;
+    WorldInfo := [false, -1, false]; //Members? , World #  (144 is a PC world, so few ppl will be smithing :)  )
+    BoxRewards := ['amp', 'ook'];
+    Strings[0] := 'iron';  //Do it lowercase like this
+    Strings[1] := 'Platebody'; //This one the first letter is uppercase
+  end;
+     {
+  with Players[1] do
+  begin
+    Name := '';
+    Pass := '';
+    Nick := '';    // 3 or so letters of username
+    Pin := '';
+    Active := True;
+    WorldInfo := [false, -1, false]; //Members? , World #  (144 is a PC world, so few ppl will be smithing :)  )
+    BoxRewards := ['amp', 'ook'];
+    Strings[0] := 'iron';  //Do it lowercase like this
+    Strings[1] := 'Platebody'; //This one the first letter is uppercase
+  end;
+    }
+  LampSkill := 'smithing';
+
+  BREAK_TIME := 30; //How long each player runs for before breaking
+  SLEEP_TIME := 10; //SP only, sleeps after break time
+  RAND_TIME := 5; //How much randomness to add to BREAK_TIME, will do + or -  this number randomly each player
+
+  if(not(HowManyPlayers = 1)) then for F := 0 to (HowManyPlayers - 1) do Players[F].Extendeds[0] := GetSmithingXP(Players[F].Strings[0]) else Players[0].Extendeds[0] := GetSmithingXP(Players[0].Strings[0]);
+
+  BREAK_TIME := (BREAK_TIME * 1000 * 60);
+  SLEEP_TIME := (SLEEP_TIME * 1000 * 60);
+end;
+
+var
+  x, y: Integer;
+  PTime, Sleepy, h, m, s, RunningTime, Loads: Integer;
+
+procedure PLN(Text: String);
+begin
+  ConvertTime((BREAK_TIME - TimeFromMark(PTime)), h, m, s);
+  if(DEBUG) then WriteLN('['+IntToStr(H)+':'+IntToStr(M)+':'+IntToStr(S)+']  '+Text);
+end;
+
+procedure AntiBan;
+var
+  MousePos: TPoint;
+begin
+  if(not(LoggedIn)) then Exit;
+  if(ClickToContinue) then
+  begin
+    repeat ClickToContinue until(not(ClickToContinue))
+    PLN('Player leveled up!');
+    Inc(Players[CurrentPlayer].Integers[1]);
+    Stats_IncVariable('Total Levels Gained', 1);
+  end;
+  R_FindRandoms;
+  GetMousePos(MousePos.x, MousePos.y);
+  case random(ANTI_BAN) of
+    0..4: PickupMouse;
+    10..24: begin    //not including health stat
+              case Players[CurrentPlayer].Integers[4] of
+                1: HoverSkill('attack', False);
+                2: HoverSkill('smithing', False);
+                3: HoverSkill('defence', False);
+                4: HoverSkill('magic', False);
+              end;
+            end;
+    40..42: GameTab(RandomRange(tab_Combat, tab_Notes));
+    57..60: Wait(500 + Random(1500));
+    86..90: BoredHuman;
+    95..97: R_MakeCompass(RandomRange(0, 340));
+    {95..98: begin  ExitToLobby;   //afk antiban
+              case RandomRange(1, 3) of
+                1: begin
+                   end;
+                2: begin
+                   end;
+                3: begin
+                   end;
+              end;
+            end;}
+  end;
+
+  GameTab(Tab_Inv);
+  MMouse(MousePos.x, MousePos.y, 0, 0);
+end;
+
+function ClickAnvil: Boolean;
+var
+  LoopTime, TryCount, FTime: Integer;
+  Anvil : TRSObject;
+  AnvPT: TPoint;
+begin
+  if(not(LoggedIn)) then Exit;
+  if(SmithingScreen) then
+  begin
+    PLN('Smithing screen open!');
+    Result := True;
+    Exit;
+  end;
+  MarkTime(LoopTime);
+  PLN('Trying to find anvil');
+  repeat
+    Inc(TryCount);
+    PLN('== Try '+IntToStr((TryCount)));
+    Anvil := GetObjectByID(2783, 0, 10);
+    if(TileOnMS(Anvil.Tile, 5)) then
+    begin
+      PLN('Found anvil!');
+      MarkTime(FTime);
+      if(not(ItemActivated(1))) then MouseItem(1, True);
+      AnvPT := TileToMS(Anvil.Tile, 5);
+      MMouse(AnvPt.x, AnvPt.y, 4, 4);
+      if(IsUptext('nvil')) then Mouse(AnvPt.x, AnvPt.y, 4, 4, True) else
+      begin
+        Mouse(AnvPt.x, AnvPt.y, 4, 4, False);
+        Wait(randomrange(200, 300));
+        ChooseOptionMulti(['nvil', 'Use', 'bar']);
+      end;
+      R_Flag;
+      repeat wait(50) until SmithingScreen or (TimeFromMark(FTime) >= 5500) or not(LoggedIn);
+      if(SmithingScreen) then
+      begin
+        PLN('Smithing screen open!');
+        Result := True;
+        Exit;
+      end;
+    end;
+  until(TimeFromMark(LoopTime) >= 120000)
+  WriteLN('Looked for anvil for 2 minutes! Error of some sort..');
+  Result := False;
+end;
+
+function DoneSmithing: Boolean;
+begin
+  Result := (R_CountItem('bar') < 4);
+end;
+
+procedure WalkToBank;
+var
+  H: Integer;
+  V: String;
+begin
+  H := GetMMLevels('run', v);
+  if(H < 30) then RestUntil(75);
+  PLN('Walking to bank');
+  H := 0;
+  repeat
+    Inc(H);
+    PLN('==Try '+IntToStr(H));
+    if(TileOnMS(Point(3188, 3436), 5)) then Exit;
+    SetRun(True);
+    R_FindRandoms;
+    if(TileOnMM(Point(3188, 3436))) then WalkToTile(Point(3188, 3436), 1, 0) else R_WebWalk(Point(3188, 3436));
+    Wait(randomrange(100, 200));
+    AntiBan;
+    R_Flag;
+  until(TileOnMS(Point(3188, 3436), 5)) or (not(LoggedIn))
+  if(not(LoggedIn)) then LoginPlayer;
+  if(TileOnMS(Point(3188, 3436), 5)) then PLN('Succesfully walked to bank!');
+end;
+
+{*******************************************************************************
+Function R_OpenBankBooth(Bank : String): Boolean;
+By: ss23 & TheGuyWhoGotOn, modifed be ProphesyOfWolf
+Description: Opens the bank using Bank Booth, without automatically relocating to be in front of the bank..
+*******************************************************************************}
+function PR_OpenBankBooth(Bank : String) : Boolean;
+var
+  Tiles: TPointArray;
+  P: TPoint;
+  Tries: Integer;
+begin
+  Result := R_BankScreen or R_PinScreen;
+  if Result then Exit;
+
+  case LowerCase(Bank) of
+    'veb', 'varrock east':
+        Tiles := [Point(3251,3419), Point(3252,3419), Point(3253,3419),
+                  Point(3254,3419), Point(3255,3419), Point(3256,3419)];
+    'vwb', 'varrock west':
+        Tiles := [Point(3190,3435), Point(3190,3437), Point(3190,3439),
+                  Point(3190,3441), Point(3190,3443), Point(3181,3444),
+                  Point(3181,3442), Point(3181,3440), Point(3181,3438),
+                  Point(3181,3436)];
+    'falador west', 'fwb':
+        Tiles := [Point(2945,3367), Point(2946,3367), Point(2947,3367),
+                  Point(2948,3367)];
+    'falador east', 'feb':
+        Tiles := [Point(3010,3354), Point(3011,3354), Point(3012,3354),
+                  Point(3013,3354), Point(3014,3354), Point(3015,3354)];
+    'lumbridge', 'lb':
+        Tiles := [Point(3208,3221)];
+    'draynor', 'db':
+        Tiles := [Point(3091,3245), Point(3091,3243), Point(3091,3242)];
+    'al kharid', 'akb':
+        Tiles := [Point(3268,3168), Point(3268,3167), Point(3268,3166),
+                  Point(3268,3169), Point(3268,3164)];
+    'seb', 'seers':
+        Tiles := [Point(2729,3494), Point(2728,3494), Point(2727,3494),
+                  Point(2724,3494), Point(2722,3494), Point(2721,3494)];
+
+    'ctb', 'catherby':
+        Tiles := [Point(2807,3442), Point(2809,3442), Point(2810,3442),
+                  Point(2811,3442)];
+
+    'eb', 'edgeville':
+        Tiles := [Point(3095,3489), Point(3095,3491), Point(3095,3493),
+                  Point(3097,3495)];
+    'fgb', 'fishing guild':
+        Tiles := [Point(2584, 3423), Point(2584, 3422)];
+    'mc', 'moonclan':
+        Tiles := [Point(2098, 3920), Point(2097, 3920), Point(2098, 3920)];
+    'yb', 'yanille':
+        Tiles := [Point(2614, 3094), Point(2614, 3092), Point(2614, 3091)];
+    'da', 'duel arena': Tiles := [Point(3381, 3269), Point(3382, 3270)];
+    'anb', 'ardougne north': Tiles := [Point(2618, 3331), Point(2619, 3331), Point(2614, 3331)];
+    'asb', 'ardougne south': Tiles := [Point(2656, 3286), Point(2656, 3283), Point(2656, 3280)];
+    'pc', 'pest control':
+        Tiles := [Point(2667, 2652), Point(2666, 2652), Point(2665, 2652),
+                  Point(2668, 2652)];
+    'cw', 'castle wars': Tiles := [Point(2445, 3083)];
+  else
+    begin
+      SRL_Warn('PR_OpenBankBooth', 'Unsupported bank name.', -1);
+      Exit;
+    end;
+  end;
+  SortTPAFrom(Tiles, GetMyPos);
+  if (DistanceFrom(Tiles[0]) > 3) or not TileOnMS(Tiles[0], 10) then
+  begin
+    if not(TileOnMM(Tiles[0])) then
+    begin
+      SRL_Warn('PR_OpenBankBooth', 'Could not find Bank Booth.', Warn_AllVersions);
+      Exit;
+    end;
+  end;
+  if not(TileOnMS(Tiles[0], 10)) then
+  begin
+    SetAngle(True);
+    MakeCompass('n');
+    Wait(RandomRange(200, 400));
+    if not(TileOnMS(Tiles[0], 10)) then
+    begin
+      SRL_Warn('PR_OpenBankBooth', 'Could get MS Point.', Warn_AllVersions);
+      Exit;
+    end;
+  end;
+
+  P := TileToMS(Tiles[0], 10);
+  MMouse(p.x - 5, p.y - 5, 11, 11);
+  Wait(RandomRange(200, 300));
+  if IsUpTextMultiCustom(['ank', 'ooth', 'ount', 'unte', 'oun', 'unter']) then
+  begin
+    GetMousePos(P.x, P.y);
+    Mouse(P.x, P.y, 0, 0, false);
+    Wait(RandomRange(80, 110));
+    P.x := 0;
+    if R_ChooseOptionMulti(['Use-quickly']) then
+      repeat
+        R_Flag;
+        Wait(RandomRange(50, 90));
+        Inc(Tries);
+        if (Length(Players) > 0) then
+          if Players[CurrentPlayer].Pin <> '' then
+            Result := InPin(Players[CurrentPlayer].Pin);
+        Result := R_BankScreen or R_PinScreen;
+      until Result or (Tries > 40);
+  end else if IsUpTextMultiCustom(['ank', 'hest']) then //one-click bank chests
+  begin
+    GetMousePos(P.x, P.y);
+    Mouse(P.x, P.y, 0, 0, true);
+    Wait(RandomRange(80, 110));
+    P.x := 0;
+    repeat
+      R_Flag;
+      Wait(RandomRange(50, 90));
+      Inc(Tries);
+      if (Length(Players) > 0) then
+        if Players[CurrentPlayer].Pin <> '' then
+          Result := InPin(Players[CurrentPlayer].Pin);
+      Result := R_BankScreen or R_PinScreen;
+    until Result or (Tries > 40);
+  end;
+end;
+
+procedure HandleBank;
+var
+  BarStr: String;
+  BankTime: Integer;
+  nullitem: TBankItem;
+begin
+  PLN('Opening bank');
+  if(PR_OpenBankBooth('vwb')) then
+  begin
+    R_Flag;
+    repeat Wait(50) until BankScreen or PinScreen;
+    if(PinScreen) then InPin(Players[CurrentPlayer].Pin);
+    PLN('Depositing items');
+    DepositAll;
+    BarStr := (Players[CurrentPlayer].Strings[0]+' bar');
+    PLN('Withdrawing items');
+    repeat
+      if(R_ItemExistsInBank(BarStr, nullitem)) then
+      begin
+        if(nullitem.StackSize < 5) then
+        begin
+          PLN('Less than 5 bars left.. Logging out');
+          Players[CurrentPlayer].Active := False;
+          CloseBank;
+          Exit;
+        end;
+        if(R_WithdrawItem(BarStr, 0)) then
+        begin
+          MarkTime(BankTime);
+          repeat Wait(random(50)) until (not(InvEmpty)) or (TimeFromMark(BankTime) >= 2000);
+          if(not(InvEmpty)) then PLN(BarStr+'s successfully withdrawn!');
+        end;
+      end else
+      begin
+        PLN('Out of bars to smith!');
+        Players[CurrentPlayer].Active := False;
+        CloseBank;
+      end;
+    until (not(Players[CurrentPlayer].Active)) or not(InvEmpty);
+  end;
+end;
+
+procedure WalkToAnvil;
+var
+  H: Integer;
+  V: String;
+begin
+  H := GetMMLevels('run', v);
+  if(H < 30) then RestUntil(75);
+  SetRun(True);
+  PLN('Walking to anvil');
+  H := 0;
+  repeat
+    Inc(H);
+    PLN('==Try '+IntToStr(H));
+    if(TileOnMS(Point(3188, 3425), 5)) then Exit;
+    SetRun(True);
+    R_FindRandoms;
+    if(TileOnMM(Point(3188, 3425))) then WalkToTile(Point(3188, 3425), 1, 0) else R_WebWalk(Point(3188, 3425));
+    Wait(randomrange(400, 600));
+    AntiBan;
+    R_Flag;
+  until(TileOnMS(Point(3188, 3425), 5)) or not(LoggedIn)
+  if(not(LoggedIn)) then LoginPlayer;
+  if(TileOnMS(Point(3188, 3425), 5)) then PLN('Successfully walked to anvil!');
+end;
+
+function PSmith: Boolean;
+var
+  BarsDone: Integer;
+  ICT: Integer;
+begin
+  case Players[CurrentPlayer].Strings[1] of
+    'Dagger', 'Hatchet', 'Mace', 'Medium helm', 'Crossbow bolts', 'Sword', 'Dart tips' ,'Nails', 'Arrow tips', 'Scimitar', 'Crossbow limbs', 'Longsword', 'Throwing knife', 'Grapple tip': BarsDone := 1;
+    'Claws', 'Full helm', 'Square shield': BarsDone := 2;
+    'Warhammer', 'Battleaxe', 'Chainbody', 'Kiteshield', '2-handed sword', 'Plateskirt', 'Platelegs': BarsDone := 3;
+    'Platebody' : BarsDone := 5;
+  end;
+  ICT := InvCount;
+  if(FindTextTPAEx(16777215, 5, 10, 60, 489, 322, x, y, Players[CurrentPlayer].Strings[1], StatChars, Nothing)) then
+  begin
+    Mouse(randomrange((x - 28), (x + 28)), randomrange((y + 7), (y + 25)), 0, 0, False);
+    Wait(randomrange(200, 400));
+    if(ChooseOption('ll')) then Result := True;
+    IncEx(Players[CurrentPlayer].Integers[0], (BarsDone * Floor(ICT / BarsDone)));
+    Exit;
+  end else
+  begin
+    FixSmith(True);
+    if(FindTextTPAEx(16777215, 5, 10, 60, 489, 322, x, y, Players[CurrentPlayer].Strings[1], StatChars, Nothing)) then
+    begin
+      Mouse(randomrange((x - 28), (x + 28)), randomrange((y + 7), (y + 25)), 0, 0, False);
+      Wait(randomrange(200, 400));
+      if(ChooseOption('ll')) then Result := True;
+      IncEx(Players[CurrentPlayer].Integers[0], (BarsDone * Floor(ICT / BarsDone)));
+      Exit;
+    end else Result := False;
+  end;
+end;
+
+procedure HandleSmithing;
+begin
+  if(ClickAnvil) then
+  begin
+    PLN('Smithing items');
+    if(PSmith) then
+    begin
+      while not DoneSmithing do AntiBan;
+      PLN('Done smithing');
+      Exit;
+    end else
+    begin
+      PLN('Failed to smith items');
+      Players[CurrentPlayer].Active := False;
+    end;
+  end else
+  begin
+    PLN('Failed to Click anvil...');
+    Players[CurrentPlayer].Active := False;
+  end;
+end;
+
+var
+  pBars, pLevels, CommitTimer: Integer;
+  eExp: Extended;
+
+procedure ProgressReport;
+var
+  II, RCS: Integer;
+  gh, gm, gs: Integer;
+  sh, sm, ss: String;
+  TRCS: Extended;
+begin
+  if(not(Players[CurrentPlayer].Integers[0] = 0)) then Inc(Loads);
+  ConvertTime(TimeFromMark(RunningTime), gh, gm, gs);
+  sh := IntToStr(gh);
+  sm := IntToStr(gm);
+  ss := IntToStr(gs);
+  WriteLN('=====================================================================');
+  WriteLN('============================PoW Forger=============================');
+  WriteLN('========== Time Running: '+sh+' hour(s), '+sm+' minute(s), and '+ss+' second(s).');
+  WriteLN('=====================================================================');
+  WriteLN('');
+  for II := 0 to (HowManyPlayers - 1) do
+  begin
+    WriteLN('=== Player '+IntToStr(II)+': '+Players[II].Name);
+    WriteLN('=== Loads : '+IntToStr(Loads));
+    WriteLN('=== Successfully smithed '+IntToStr(Players[II].Integers[0])+' bars');
+    WriteLN('=== EXP Gained : '+FloatToStr((Players[II].Integers[0] * Players[II].Extendeds[0]))+'');
+    if(Players[II].Integers[1] >=1) then WriteLN('=== Levels Gained : '+IntToStr(Players[II].Integers[1]));
+    WriteLN('=== Active : '+BoolToStr(Players[II].Active));
+    WriteLN('====================================================================');
+    WriteLN('');
+    IncEx(RCS, Players[II].Integers[0]);
+  end;
+  if(Loads = 1) then pBars := Players[CurrentPlayer].Integers[0];
+  ss := Capitalize(Players[CurrentPlayer].Strings[0])+' Bars Smithed';
+  WriteLN('Adding '+IntToStr(pBars)+' to variable '+ss);
+  Stats_IncVariable(ss, pBars);
+  II := Round(pBars * Players[CurrentPlayer].Extendeds[0]);
+  WriteLN('Adding '+IntToStr(II)+' to variable Total EXP Gained');
+  Stats_IncVariable('Total EXP Gained', II);
+  TRCS := RCS;
+  RCS := round((TRCS / TimeFromMark(RunningTime)) * 3600000);
+  WriteLN('=== Bars per hour: '+IntToStr(RCS));
+  WriteLN('=== Smithing EXP/hour: '+FloatToStr((RCS * Players[CurrentPlayer].Extendeds[0])));
+  if(TimeFromMark(CommitTimer) >= 300000) then
+  begin
+    Stats_Commit;
+    MarkTime(CommitTimer);
+    SRLRandomsReport;
+  end;
+end;
+
+procedure PrintTile;
+var
+  GGetMe: TMe;
+begin
+  repeat
+    while not(IsMouseButtonDown(2)) do Wait(50);
+    GGetMe := GetMe;
+    PLN(IntToStr(GGetMe.Tile.x)+', '+IntToStr(GGetMe.Tile.y));
+    Wait(1000);
+  until(false)
+end;
+
+var
+  TEMP_BRK: Integer;
+  RANDOMD: Boolean;
+procedure MainLoop;
+begin
+  Loads := 0;
+  repeat
+    MarkTime(CommitTimer);
+    repeat
+      MarkTime(PTime);
+      if(not(RANDOMD)) then TEMP_BRK := BREAK_TIME;
+      RANDOMD := True;
+      BREAK_TIME := TEMP_BRK;
+      IncEx(BREAK_TIME, randomrange(-RAND_TIME, RAND_TIME));
+      SetAngle(True);
+      repeat
+        if(InvFull) then
+        begin
+          WalkToAnvil;
+          AntiBan;
+          HandleSmithing;
+        end else
+        begin
+          AntiBan;
+          WalkToBank;
+          HandleBank;
+          AntiBan;
+          ProgressReport;
+        end;
+      until(TimeFromMark(PTime) >= BREAK_TIME) or (not(Players[CurrentPlayer].Active))
+      if(AllPlayersInactive) then
+      begin
+        ProgressReport;
+        PLN('All players inactive!');
+        TerminateScript;
+      end;
+      if(HowManyPlayers > 1) and (Players[CurrentPlayer].Active) then
+      begin
+        NextPlayer(True);
+        Loads := 0;
+      end else
+      begin
+        if((HowManyPlayers = 1) or (PlayersActive = 1)) and (Players[CurrentPlayer].Active) then
+        begin
+          Logout;
+          Sleepy := (SLEEP_TIME + randomrange((-5 * 60000), (5 * 60000)));
+          ConvertTime(Sleepy, h, m, s);
+          PLN('Sleeping for '+IntToStr(m)+' minutes and '+IntToStr(s)+' seconds!');
+          Sleep(Sleepy);
+          PLN('Done sleeping!');
+          LoginPlayer;
+        end;
+      end;
+    until(not(Players[CurrentPlayer].Active))
+    if(HowManyPlayers > 1) then NextPlayer(False);
+  until(AllPlayersInactive)
+  TerminateScript;
+end;
+
+var
+  xx, yy: Integer;
+  ojs: TRSObject;
+
+begin
+  SetupSmartStuff;
+  SetupSRL;
+  SetupReflection;
+  DeclarePlayers;
+  LoginPlayer;
+  MarkTime(RunningTime);
+  RANDOMD := False;
+  MainLoop;
+end.
