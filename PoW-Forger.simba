@@ -17,7 +17,7 @@ var
 
 procedure SetupSmartStuff;
 begin
-  if (SRLStats_Username = '') then SetupSRLStats(152, 'Anonymous', 'anon1337') else SetupSRLStats(152, SRLStats_Username, SRLStats_Password);
+  if (SRLStats_User = '') then SetupSRLStats(152, 'Anonymous', 'anon1337') else SetupSRLStats(152, SRLStats_User, SRLStats_Password);
   SMART_SERVER  := 161;
   SMART_SIGNED  := True;
   SMART_MEMBERS := False;
